@@ -349,7 +349,7 @@ class Request(dict):
                 k = to_unicode(k)
                 v = to_unicode_optional_iterator(v)
                 self[k] = v
-        self.body = body
+        self.body = body.encode('UTF-8')
         self.is_form_encoded = is_form_encoded
 
 
@@ -481,10 +481,10 @@ class Request(dict):
         # Spaces must be encoded with "%20" instead of "+"
         return encoded_str.replace('+', '%20').replace('%7E', '~')
 
-    def sign_request(self, signature_method, consumer, token):
+    def sign_request(self, signature_method, consumer, token, include_body_hash=True):
         """Set the signature parameter to the result of sign."""
 
-        if not self.is_form_encoded:
+        if not self.is_form_encoded and include_body_hash:
             # according to
             # http://oauth.googlecode.com/svn/spec/ext/body_hash/1.0/oauth-bodyhash.html
             # section 4.1.1 "OAuth Consumers MUST NOT include an
@@ -637,7 +637,7 @@ class Client(httplib2.Http):
         self.method = method
 
     def request(self, uri, method="GET", body='', headers=None, 
-        redirections=httplib2.DEFAULT_MAX_REDIRECTS, connection_type=None):
+        redirections=httplib2.DEFAULT_MAX_REDIRECTS, connection_type=None, include_body_hash=True):
         DEFAULT_POST_CONTENT_TYPE = 'application/x-www-form-urlencoded'
 
         if not isinstance(headers, dict):
@@ -659,7 +659,7 @@ class Client(httplib2.Http):
             token=self.token, http_method=method, http_url=uri, 
             parameters=parameters, body=body, is_form_encoded=is_form_encoded)
 
-        req.sign_request(self.method, self.consumer, self.token)
+        req.sign_request(self.method, self.consumer, self.token, include_body_hash)
 
         schema, rest = urllib.parse.splittype(uri)
         if rest.startswith('//'):
@@ -837,10 +837,10 @@ class SignatureMethod_HMAC_SHA1(SignatureMethod):
         """Builds the base signature string."""
         key, raw = self.signing_base(request, consumer, token)
 
-        hashed = hmac.new(key, raw, sha)
+        hashed = hmac.new(key.encode('UTF-8'), raw.encode('UTF-8'), sha)
 
         # Calculate the digest base 64.
-        return binascii.b2a_base64(hashed.digest())[:-1]
+        return binascii.b2a_base64(hashed.digest())[:-1].decode('UTF-8')
 
 
 class SignatureMethod_PLAINTEXT(SignatureMethod):
